@@ -10,6 +10,10 @@ async function redis(cmd){
 async function pipe(cmds){
   await fetch(RURL+'/pipeline', { method:'POST', headers:{ Authorization:'Bearer '+RTOK, 'Content-Type':'application/json' }, body: JSON.stringify(cmds) });
 }
+function dayStr(){
+  const d = new Date(Date.now() + 7*3600*1000);
+  return d.toISOString().slice(0,10);
+}
 
 exports.handler = async (event) => {
   const headers = { 'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Methods':'POST, OPTIONS','Content-Type':'application/json' };
@@ -23,6 +27,7 @@ exports.handler = async (event) => {
       const rec = req.record || {};
       const cls = String(rec.cls||'?').slice(0,40);
       rec.ts = Date.now();
+      rec.day = dayStr();
       const key = 'cls:'+cls;
       await pipe([['LPUSH', key, JSON.stringify(rec)], ['LTRIM', key, '0', '19999'], ['SADD', 'classes', cls]]);
       return { statusCode:200, headers, body: JSON.stringify({ ok:true }) };
@@ -37,6 +42,12 @@ exports.handler = async (event) => {
       const arr = await redis(['LRANGE', 'cls:'+cls, '0', '-1']) || [];
       const records = arr.map(function(s){ try { return JSON.parse(s); } catch(e){ return null; } }).filter(Boolean);
       return { statusCode:200, headers, body: JSON.stringify({ records: records }) };
+    }
+    if (req.action === 'reset'){
+      if (TPASS && req.pass !== TPASS) return { statusCode:200, headers, body: JSON.stringify({ error:'BAD_PASS' }) };
+      const cls = String(req.cls||'').slice(0,40);
+      await redis(['DEL', 'cls:'+cls]);
+      return { statusCode:200, headers, body: JSON.stringify({ ok:true }) };
     }
     return { statusCode:400, headers, body:'{}' };
   } catch(e){
