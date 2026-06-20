@@ -2121,7 +2121,7 @@ function handMockResult(){
 
 // ============ BẢNG GIÁO VIÊN + BÁO CÁO ============
 let tcTab = 'pron';
-let tcAuth = null, tcRecords = [];
+let tcAuth = null, tcRecords = [], tcDay = '__course__';
 function cloudSubmit(entry){
   try {
     fetch('/.netlify/functions/data', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'submit', record:{
@@ -2181,43 +2181,92 @@ async function tcLogin(){
 }
 async function tcRefresh(){ try { const j = await cloudReport(tcAuth.cls, tcAuth.pass); tcRecords = j.records || []; tcDash(); } catch(e){} }
 function tcLogout(){ tcAuth = null; tcRecords = []; renderTeacher(); }
+function tcSetDay(d){ tcDay = d; tcDash(); }
+function tcDayLabel(d){
+  if (!d || d.length < 10) return d;
+  const today = new Date(Date.now() + 7*3600*1000).toISOString().slice(0,10);
+  return d.slice(8,10) + '/' + d.slice(5,7) + (d === today ? ' (hôm nay)' : '');
+}
+async function tcReset(){
+  if (!confirm('Xóa TOÀN BỘ kết quả đã ghi của lớp ' + tcAuth.cls + '? Không khôi phục được.')) return;
+  try {
+    await fetch('/.netlify/functions/data', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'reset', cls:tcAuth.cls, pass:tcAuth.pass }) });
+    tcRecords = []; tcDay = '__course__'; renderTeacher();
+  } catch(e){ alert('Lỗi khi xóa dữ liệu.'); }
+}
 function tcDash(){
   const box = document.getElementById('tc-dash'); if (!box) return;
   const recs = tcRecords;
-  if (!recs.length){ box.innerHTML = '<p class="tc-empty">Chưa có học viên nào trong lớp này gửi kết quả. (Kết quả tự gửi khi học viên luyện trên app đã deploy.)</p>'; return; }
-  const byStu = {};
-  recs.forEach(function(r){ const nm = r.name || '?'; (byStu[nm] = byStu[nm] || []).push(r); });
-  const students = Object.keys(byStu);
-  const avgAll = Math.round(recs.reduce(function(s,r){ return s + (+r.score||0); }, 0) / recs.length);
+  if (!recs.length){ box.innerHTML = '<p class="tc-empty">Chưa có học viên nào gửi kết quả. (Kết quả tự gửi khi học viên luyện trên app đã deploy.)</p>'; return; }
   const roster = tcGetRoster().split('\n').map(function(x){ return x.trim(); }).filter(Boolean);
-  const didSet = {}; students.forEach(function(n){ didSet[n.toLowerCase()] = true; });
-  const notDone = roster.filter(function(n){ return !didSet[n.toLowerCase()]; });
-  const errFreq = {};
-  recs.forEach(function(r){ String(r.errChars||'').split('').forEach(function(c){ if (/[一-鿿]/.test(c)) errFreq[c] = (errFreq[c]||0)+1; }); });
-  const topErr = Object.entries(errFreq).sort(function(a,b){ return b[1]-a[1]; }).slice(0,18);
-  const passCount = students.filter(function(nm){ const arr=byStu[nm]; return Math.round(arr.reduce(function(s,r){return s+(+r.score||0);},0)/arr.length) >= 80; }).length;
-  const rows = students.map(function(nm){
-    const arr = byStu[nm];
+  const days = Array.from(new Set(recs.map(function(r){ return r.day || ''; }))).filter(Boolean).sort().reverse();
+  if (tcDay !== '__course__' && days.indexOf(tcDay) < 0) tcDay = days[0] || '__course__';
+  const ctrl = '<div class="seg" style="margin-bottom:12px">' +
+    '<button class="' + (tcDay==='__course__'?'on':'') + '" onclick="tcSetDay(\'__course__\')">📊 Cả khóa</button>' +
+    days.slice(0,7).map(function(d){ return '<button class="' + (tcDay===d?'on':'') + '" onclick="tcSetDay(\'' + d + '\')">' + esc(tcDayLabel(d)) + '</button>'; }).join('') +
+    '</div>';
+  const body = (tcDay === '__course__') ? tcCourseView(recs, roster, days) : tcDayView(recs.filter(function(r){ return r.day === tcDay; }), roster, tcDay);
+  box.innerHTML = ctrl + body +
+    '<div class="panel" style="margin-top:14px;border:1px solid rgba(217,0,27,.25)"><b style="font-size:15px">Bắt đầu đợt/khóa học mới</b>' +
+    '<p class="note-line">Xóa toàn bộ kết quả đã ghi của lớp này để ghi lại từ đầu (vd sang khóa mới). Không khôi phục được.</p>' +
+    '<div class="pill-row" style="margin-top:8px"><button class="btn-ghost" style="color:#D9001B;border-color:rgba(217,0,27,.4)" onclick="tcReset()">🗑️ Xóa dữ liệu & bắt đầu mới</button></div></div>';
+}
+function tcStudentRows(byStu, mode, totalDays){
+  return Object.keys(byStu).map(function(n){
+    const arr = byStu[n];
     const a = Math.round(arr.reduce(function(s,r){ return s+(+r.score||0); }, 0) / arr.length);
-    const errs = {};
-    arr.forEach(function(r){ String(r.errChars||'').split('').forEach(function(c){ if (/[一-鿿]/.test(c)) errs[c]=(errs[c]||0)+1; }); });
+    const errs = {}; arr.forEach(function(r){ String(r.errChars||'').split('').forEach(function(c){ if (/[一-鿿]/.test(c)) errs[c]=(errs[c]||0)+1; }); });
     const top = Object.entries(errs).sort(function(p,q){ return q[1]-p[1]; }).slice(0,8);
-    const col = a>=80?'#059669':(a>=60?'#f59e0b':'#D9001B');
-    return '<div class="tc-row"><div class="tcr-h"><span class="tcr-name">'+esc(nm)+'</span>'+
-      '<span class="tcr-meta">'+arr.length+' lượt · TB <b style="color:'+col+'">'+a+'%</b></span></div>'+
-      (top.length ? '<div class="tcr-badges">'+top.map(function(e){ return '<span class="tcr-badge zh">'+esc(e[0])+(e[1]>1?' ×'+e[1]:'')+'</span>'; }).join('')+'</div>' : '<div class="note-line" style="margin-top:6px">Không có lỗi nổi bật 👍</div>')+'</div>';
-  }).join('');
-  box.innerHTML =
+    const scol = a>=80?'#059669':(a>=60?'#f59e0b':'#D9001B');
+    let meta;
+    if (mode==='course'){
+      const sdays = new Set(arr.map(function(r){ return r.day; })).size;
+      const att = totalDays?Math.round(sdays/totalDays*100):0;
+      const acol = att>=80?'#059669':(att>=50?'#f59e0b':'#D9001B');
+      meta = 'Chuyên cần <b style="color:'+acol+'">'+att+'%</b> ('+sdays+'/'+totalDays+' buổi) · điểm TB <b style="color:'+scol+'">'+a+'%</b>';
+    } else {
+      meta = arr.length+' lượt · điểm TB <b style="color:'+scol+'">'+a+'%</b>';
+    }
+    return '<div class="tc-row" data-att="'+(mode==='course'?(totalDays?Math.round(new Set(arr.map(function(r){return r.day;})).size/totalDays*100):0):a)+'"><div class="tcr-h"><span class="tcr-name">'+esc(n)+'</span><span class="tcr-meta">'+meta+'</span></div>'+
+      (top.length?'<div class="tcr-badges">'+top.map(function(e){ return '<span class="tcr-badge zh">'+esc(e[0])+(e[1]>1?' ×'+e[1]:'')+'</span>'; }).join('')+'</div>':'<div class="note-line" style="margin-top:6px">Không có lỗi nổi bật 👍</div>')+'</div>';
+  });
+}
+function tcDayView(recs, roster, day){
+  const byStu = {}; recs.forEach(function(r){ const n=r.name||'?'; (byStu[n]=byStu[n]||[]).push(r); });
+  const students = Object.keys(byStu);
+  const didSet = {}; students.forEach(function(n){ didSet[n.toLowerCase()]=true; });
+  const notDone = roster.filter(function(n){ return !didSet[n.toLowerCase()]; });
+  const avg = recs.length?Math.round(recs.reduce(function(s,r){ return s+(+r.score||0); },0)/recs.length):0;
+  const rows = tcStudentRows(byStu, 'day', 0).join('');
+  return '<h2 class="sec-head">Ngày ' + esc(tcDayLabel(day)) + '</h2>' +
     '<div class="tc-stat">' +
       '<div class="tcs"><div class="tcs-n">'+students.length+'</div><div class="tcs-l">em đã làm</div></div>' +
-      (roster.length ? '<div class="tcs"><div class="tcs-n" style="color:#D9001B">'+notDone.length+'</div><div class="tcs-l">em chưa làm</div></div>' : '') +
-      '<div class="tcs"><div class="tcs-n">'+recs.length+'</div><div class="tcs-l">lượt làm</div></div>' +
-      '<div class="tcs"><div class="tcs-n">'+avgAll+'%</div><div class="tcs-l">điểm TB lớp</div></div>' +
-      '<div class="tcs"><div class="tcs-n">'+passCount+'</div><div class="tcs-l">em đạt ≥80%</div></div>' +
+      (roster.length?'<div class="tcs"><div class="tcs-n" style="color:#D9001B">'+notDone.length+'</div><div class="tcs-l">em chưa làm</div></div>':'') +
+      '<div class="tcs"><div class="tcs-n">'+recs.length+'</div><div class="tcs-l">lượt</div></div>' +
+      '<div class="tcs"><div class="tcs-n">'+avg+'%</div><div class="tcs-l">điểm TB</div></div>' +
     '</div>' +
-    (notDone.length ? '<div class="panel" style="border:1px solid rgba(217,0,27,.3)"><b style="font-size:15px;color:#D9001B">⚠️ '+notDone.length+' em chưa làm bài</b><div class="note-line" style="margin-top:4px">'+esc(notDone.join('、'))+'</div></div>' : '') +
-    (topErr.length ? '<div class="panel"><b style="font-size:15px">Chữ/âm sai nhiều nhất cả lớp — cần nhắc chung</b><div class="tcr-badges" style="margin-top:8px">'+topErr.map(function(e){ return '<span class="tcr-badge zh">'+esc(e[0])+' ×'+e[1]+'</span>'; }).join('')+'</div></div>' : '') +
-    '<h2 class="sec-head">Theo từng học viên</h2>' + rows;
+    (notDone.length?'<div class="panel" style="border:1px solid rgba(217,0,27,.3)"><b style="font-size:15px;color:#D9001B">⚠️ '+notDone.length+' em CHƯA làm ngày này</b><div class="note-line" style="margin-top:4px">'+esc(notDone.join('、'))+'</div></div>':'') +
+    '<h2 class="sec-head">Chi tiết từng em</h2>' + rows;
+}
+function tcCourseView(recs, roster, days){
+  const totalDays = days.length;
+  const byStu = {}; recs.forEach(function(r){ const n=r.name||'?'; (byStu[n]=byStu[n]||[]).push(r); });
+  const students = Object.keys(byStu);
+  const avgAll = Math.round(recs.reduce(function(s,r){ return s+(+r.score||0); },0)/recs.length);
+  const didSet = {}; students.forEach(function(n){ didSet[n.toLowerCase()]=true; });
+  const notEver = roster.filter(function(n){ return !didSet[n.toLowerCase()]; });
+  const rowsArr = tcStudentRows(byStu, 'course', totalDays);
+  rowsArr.sort(function(a,b){ return (+b.match(/data-att="(\d+)"/)[1]) - (+a.match(/data-att="(\d+)"/)[1]); });
+  return '<h2 class="sec-head">Tổng cả khóa (' + totalDays + ' buổi có học)</h2>' +
+    '<div class="tc-stat">' +
+      '<div class="tcs"><div class="tcs-n">'+students.length+'</div><div class="tcs-l">em có làm</div></div>' +
+      (roster.length?'<div class="tcs"><div class="tcs-n" style="color:#D9001B">'+notEver.length+'</div><div class="tcs-l">em chưa làm lần nào</div></div>':'') +
+      '<div class="tcs"><div class="tcs-n">'+totalDays+'</div><div class="tcs-l">buổi</div></div>' +
+      '<div class="tcs"><div class="tcs-n">'+avgAll+'%</div><div class="tcs-l">điểm TB lớp</div></div>' +
+    '</div>' +
+    (notEver.length?'<div class="panel" style="border:1px solid rgba(217,0,27,.3)"><b style="font-size:15px;color:#D9001B">⚠️ '+notEver.length+' em chưa làm bài lần nào cả khóa</b><div class="note-line" style="margin-top:4px">'+esc(notEver.join('、'))+'</div></div>':'') +
+    '<div class="note-line" style="margin:0 2px 10px">"Chuyên cần %" = số buổi em có làm bài chia tổng số buổi lớp đã học.</div>' +
+    '<h2 class="sec-head">Theo từng học viên (xếp theo chuyên cần)</h2>' + rowsArr.join('');
 }
 function tcSet(t){ tcTab = t; renderTeacher(); }
 function tcBody(){
