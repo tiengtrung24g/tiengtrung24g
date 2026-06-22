@@ -614,7 +614,7 @@ const TTS_MODE_STORE = 'tt24g_ttsmode';
 const TTS_VOICE_STORE = 'tt24g_ttsvoice';
 const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
 const TTS_VOICES = [['Kore','Kore — nữ, rõ ràng, chuẩn (khuyên dùng)'],['Leda','Leda — nữ, trẻ trung'],['Aoede','Aoede — nữ, nhẹ nhàng'],['Zephyr','Zephyr — nữ, tươi sáng'],['Puck','Puck — nam, sinh động'],['Charon','Charon — nam, trầm ấm']];
-function getTtsMode(){ try{ return localStorage.getItem(TTS_MODE_STORE) || 'ai'; }catch{ return 'browser'; } }
+function getTtsMode(){ try{ return localStorage.getItem(TTS_MODE_STORE) || 'browser'; }catch{ return 'browser'; } }
 function setTtsMode(m){ try{ localStorage.setItem(TTS_MODE_STORE, m); }catch{} }
 function getTtsVoice(){ try{ return localStorage.getItem(TTS_VOICE_STORE) || 'Kore'; }catch{ return 'Kore'; } }
 function setTtsVoice(v){ try{ localStorage.setItem(TTS_VOICE_STORE, v); }catch{} }
@@ -1736,7 +1736,7 @@ async function onAudioStop(id){
       const r = await scoreFullAI(L.kewen, blob);
       document.getElementById('spresFULL').innerHTML = renderFullResult(r);
       logAi({ kind:'pron', lesson:spLesson, target:'【Cả bài】'+L.zh, py:'', transcript:r.transcript||'', score:r.overall, errChars:r.errChars, advice:r.advice, mode:'ai' });
-      feedbackSound(r.overall >= 80);
+      feedbackSound(r.overall >= 70);
     } else {
       const it = spItems[id];
       const r = await scorePronAI(blob, it);
@@ -1749,10 +1749,10 @@ async function onAudioStop(id){
 async function scoreFullAI(kewen, blob){
   const lines = stripKewenLines(kewen);
   const b64 = await blobToB64(blob); const mime = (blob.type || 'audio/webm').split(';')[0];
-  const prompt = 'Bạn là giáo viên tiếng Trung CHẤM RẤT KHẮT KHE phát âm cho học sinh người Việt. ' +
+  const prompt = 'Bạn là giáo viên tiếng Trung CHẤM KHÍCH LỆ, RỘNG RÃI cho học sinh người Việt mới học — KHÔNG khắt khe. ' +
     'Học sinh đọc to cả bài khóa gồm các câu sau:\n' + lines.map(function(l,i){ return (i+1)+'. '+l; }).join('\n') + '\n' +
-    'Nghe ghi âm và chấm từng câu thật nghiêm về: THANH ĐIỆU (sai thanh trừ điểm nặng), ÂM BẬT HƠI (p t k q c ch), ÂM ĐẦU LƯỠI TRƯỚC (z c s), ÂM CONG LƯỠI (zh ch sh r). ' +
-    'CHỈ trả về JSON: {"overall":0-100,"transcript":"chữ Hán nghe được","advice":"2-3 câu khuyên tiếng Việt, nêu lỗi phát âm nổi bật nhất","lines":[{"i":số câu,"score":0-100,"wrong":["chữ chưa đạt"],"issue":"lỗi cụ thể, vd: 难 nán sai thanh 2; 七 qī chưa bật hơi"}]}.';
+    'Nguyên tắc cho điểm mỗi câu: đọc đúng từ và tạm rõ thanh điệu → 85-95; lơ lớ/ngọng nhẹ nhưng vẫn nghe ra ý → 75-85; chỉ cho dưới 70 khi đọc SAI TỪ rõ rệt hoặc sai nhiều thanh điệu. Chấm như giáo viên động viên người mới học, đừng trừ điểm vì khẩu âm vùng miền. ' +
+    'CHỈ trả về JSON: {"overall":0-100,"transcript":"chữ Hán nghe được","advice":"2-3 câu khuyên NHẸ NHÀNG, khích lệ","lines":[{"i":số câu,"score":0-100,"wrong":["chỉ những chữ SAI RÕ"],"issue":"lỗi rõ rệt nếu có"}]}.';
   const out = await geminiCall([{ text: prompt }, { inline_data: { mime_type: mime, data: b64 } }], { json: true });
   const j = parseAiJson(out) || {};
   const lineRes = lines.map(function(t, idx){
@@ -1882,7 +1882,7 @@ function fullFinish(){
   const r = scoreFull(L.kewen, transcript);
   res.innerHTML = renderFullResult(r);
   logAi({ kind: 'pron', lesson: spLesson, target: '【Cả bài】' + L.zh, py: '', transcript: transcript, score: r.overall, errChars: r.errChars, advice: r.advice, mode: 'browser' });
-  feedbackSound(r.overall >= 80);
+  feedbackSound(r.overall >= 70);
 }
 function scoreFull(kewen, transcript){
   const lines = stripKewenLines(kewen);
@@ -1901,19 +1901,19 @@ function scoreFull(kewen, transcript){
   const errChars = lineRes.reduce(function(a, x){ return a.concat(x.wrong); }, []);
   const weak = lineRes.filter(function(x){ return x.score < 80 && x.len >= 2; }).sort(function(a, b){ return a.score - b.score; });
   let advice;
-  if (overall >= 90) advice = 'Tuyệt vời! Bạn đọc cả bài rất chuẩn. Hãy giữ phong độ này nhé!';
-  else if (overall >= 80) advice = 'Đạt yêu cầu! Chú ý thêm vài chỗ tô đỏ để đọc hoàn hảo hơn.';
-  else if (overall >= 60) advice = 'Gần đạt rồi. Hãy nghe mẫu và luyện lại các câu sai bên dưới, rồi đọc lại cả bài.';
-  else advice = 'Cần luyện thêm. Nghe mẫu từng câu, đọc chậm từng chữ, sau đó đọc lại cả bài.';
+  if (overall >= 85) advice = 'Tuyệt vời! Bạn đọc cả bài rất tốt. Hãy giữ phong độ này nhé!';
+  else if (overall >= 70) advice = 'Đạt yêu cầu rồi! Chú ý thêm vài chỗ tô đỏ để đọc hay hơn.';
+  else if (overall >= 55) advice = 'Gần đạt rồi. Nghe mẫu và luyện lại các câu tô đỏ, rồi đọc lại cả bài.';
+  else advice = 'Cố lên nhé! Nghe mẫu từng câu, đọc chậm rồi đọc lại cả bài.';
   return { overall: overall, lines: lineRes, errChars: errChars, weak: weak, advice: advice };
 }
 function renderFullResult(r){
-  const pass = r.overall >= 80;
-  const col = r.overall >= 80 ? '#059669' : (r.overall >= 60 ? '#f59e0b' : '#D9001B');
+  const pass = r.overall >= 70;
+  const col = r.overall >= 70 ? '#059669' : (r.overall >= 50 ? '#f59e0b' : '#D9001B');
   const nm = esc((user.name || '').split(' ').pop());
   const trophy = pass
     ? '<div class="trophy ok"><div class="trophy-ic">🏆</div><div class="trophy-t">ĐẠT!</div><div class="trophy-s">Chúc mừng ' + nm + ' — ' + r.overall + ' điểm</div></div>'
-    : '<div class="trophy no"><div class="trophy-ic">💪</div><div class="trophy-t">CHƯA ĐẠT</div><div class="trophy-s">' + r.overall + ' điểm · cần đạt 80 điểm, luyện thêm nhé!</div></div>';
+    : '<div class="trophy no"><div class="trophy-ic">💪</div><div class="trophy-t">CHƯA ĐẠT</div><div class="trophy-s">' + r.overall + ' điểm · cần đạt 70 điểm, cố thêm chút nữa nhé!</div></div>';
   let wrongLines = r.lines.filter(function(x){ return x.score < 100; }).map(function(x){
     const wr = x.wrong.map(function(c){ return '<span class="sp-ch bad">' + esc(c) + '</span><span class="pyhint">' + esc(pyOf(c)) + '</span>'; }).join(' ');
     return '<div class="ln-row"><div class="ln-head"><div class="ln-zh hanzi">' + esc(x.text) + '</div><div class="ln-score" style="color:' + (x.score >= 80 ? '#059669' : '#D9001B') + '">' + x.score + '</div></div>' + (wr ? '<div class="ln-wrong">Sai: ' + wr + '</div>' : '') + (x.issue ? '<div class="ln-wrong" style="color:var(--cinnabar)">⚠ ' + esc(x.issue) + '</div>' : '') + '</div>';
@@ -1936,12 +1936,12 @@ function spSummary(){
   const box = document.getElementById('sp-summary'); if (!box) return;
   if (!done.length){ box.innerHTML = '<div class="sp-fb">Bạn chưa luyện mục nào. Hãy bấm Ghi âm ở từng mục rồi tổng kết.</div>'; return; }
   const avg = Math.round(done.reduce(function(s,x){return s+x.score;},0)/done.length);
-  const pass = avg >= 80;
+  const pass = avg >= 70;
   const nm = esc((user.name || '').split(' ').pop());
   const partName = spMode==='word'?'Từ vựng':(spMode==='phon'?'Ngữ âm':'Đọc câu');
   const trophy = pass
     ? '<div class="trophy ok"><div class="trophy-ic">🏆</div><div class="trophy-t">ĐẠT! ' + avg + '%</div><div class="trophy-s">' + nm + ' · ' + done.length + '/' + spItems.length + ' mục đã luyện</div></div>'
-    : '<div class="trophy no"><div class="trophy-ic">💪</div><div class="trophy-t">CHƯA ĐẠT · ' + avg + '%</div><div class="trophy-s">Cần ≥ 80%, luyện thêm nhé!</div></div>';
+    : '<div class="trophy no"><div class="trophy-ic">💪</div><div class="trophy-t">CHƯA ĐẠT · ' + avg + '%</div><div class="trophy-s">Cần ≥ 70%, cố thêm chút nữa nhé!</div></div>';
   const wrong = done.filter(function(x){return x.score<80;});
   const wrongHtml = wrong.length ? wrong.map(function(x){
     const w = (x.wrong||[]).map(function(c){ return '<span class="sp-ch bad">'+esc(c)+'</span><span class="pyhint">'+esc(pyOf(c))+'</span>'; }).join(' ');
@@ -1987,13 +1987,12 @@ async function scorePronAI(blob, it){
   const b64 = await blobToB64(blob);
   const mime = (blob.type || 'audio/webm').split(';')[0];
   const prompt =
-    'Bạn là giáo viên tiếng Trung CHẤM RẤT KHẮT KHE phát âm cho học sinh người Việt. ' +
+    'Bạn là giáo viên tiếng Trung CHẤM KHÍCH LỆ, RỘNG RÃI cho học sinh người Việt mới học — KHÔNG khắt khe. ' +
     'Học sinh đọc câu:\nChữ Hán: ' + it.zh + '\n' + (it.py ? ('Pinyin: ' + it.py + '\n') : '') +
-    'Chấm nghiêm về: THANH ĐIỆU (sai thanh trừ điểm nặng), ÂM BẬT HƠI (p t k q c ch), ÂM ĐẦU LƯỠI TRƯỚC (z c s), ÂM CONG LƯỠI (zh ch sh r). ' +
-    'Yêu cầu phát âm chuẩn mới cho điểm cao; chỉ rõ từng lỗi. CHỈ trả về JSON:\n' +
-    '{"transcript":"chữ Hán nghe được","score":0-100,"errChars":["chữ chưa đạt"],' +
-    '"toneErrors":["lỗi cụ thể, vd: 难 nán đọc sai thành thanh 4; 七 qī chưa bật hơi; 是 shì đọc thành s không cong lưỡi"],"advice":"1-2 câu khuyên bằng tiếng Việt"}. ' +
-    'Nếu không nghe rõ thì để score thấp và ghi rõ ở advice.';
+    'Nguyên tắc cho điểm: đọc đúng từ và tạm rõ thanh điệu → 85-95; lơ lớ/ngọng nhẹ nhưng vẫn nghe ra → 75-85; chỉ dưới 70 khi đọc SAI TỪ rõ rệt hoặc sai nhiều thanh điệu. Đừng trừ điểm vì khẩu âm vùng miền. CHỈ trả về JSON:\n' +
+    '{"transcript":"chữ Hán nghe được","score":0-100,"errChars":["chỉ những chữ SAI RÕ"],' +
+    '"toneErrors":["chỉ lỗi RÕ RỆT nếu có, vd: 难 đọc sai thanh"],"advice":"1-2 câu khuyên NHẸ NHÀNG, khích lệ"}. ' +
+    'Nếu thật sự không nghe rõ giọng thì để score thấp và ghi rõ ở advice.';
   const out = await geminiCall([{ text: prompt }, { inline_data: { mime_type: mime, data: b64 } }], { json: true });
   const j = parseAiJson(out) || {};
   const tgt = normHan(it.zh).split('');
@@ -2005,7 +2004,7 @@ async function scorePronAI(blob, it){
 function renderSpResult(i, r, audioURL){
   spSession[spLesson + '|' + spMode + '|' + i] = { score: r.score, wrong: (r.errChars || []).slice(), zh: (spItems[i] || {}).zh || '' };
   const res = document.getElementById('spres' + i);
-  const col = r.score >= 80 ? '#059669' : (r.score >= 60 ? '#f59e0b' : '#D9001B');
+  const col = r.score >= 70 ? '#059669' : (r.score >= 50 ? '#f59e0b' : '#D9001B');
   const chars = (r.charMarks || []).map(m => '<span class="sp-ch ' + m.st + '">' + esc(m.c) + '</span>').join('');
   const tones = (r.toneErrors && r.toneErrors.length) ? '<div class="sp-fb"><b>Cần sửa phát âm:</b> ' + r.toneErrors.map(esc).join('; ') + '</div>' : '';
   const fix = (r.errChars || []).filter(Boolean);
