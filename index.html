@@ -2056,13 +2056,35 @@ function renderHand(){
 }
 function handFile(inp){
   const f = inp.files && inp.files[0]; if (!f) return;
+  const prev = document.getElementById('hand-prevwrap');
+  if (prev) prev.innerHTML = '<div class="note-line"><span class="spin"></span> Đang xử lý ảnh...</div>';
   const r = new FileReader();
-  r.onload = () => {
-    const s = r.result;
-    handImgB64 = s.slice(s.indexOf(',') + 1); handImgMime = f.type || 'image/jpeg';
-    document.getElementById('hand-prevwrap').innerHTML = '<img class="up-prev" src="' + s + '"/>';
-    document.getElementById('hand-go').disabled = false;
-    document.getElementById('hand-result').innerHTML = '';
+  r.onload = function(){
+    const img = new Image();
+    img.onload = function(){
+      try {
+        const maxD = 1280;
+        let w = img.width, h = img.height;
+        if (Math.max(w, h) > maxD){ const k = maxD / Math.max(w, h); w = Math.round(w * k); h = Math.round(h * k); }
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        const durl = c.toDataURL('image/jpeg', 0.82);
+        handImgB64 = durl.slice(durl.indexOf(',') + 1); handImgMime = 'image/jpeg';
+        if (prev) prev.innerHTML = '<img class="up-prev" src="' + durl + '"/>';
+      } catch(e){
+        handImgB64 = r.result.slice(r.result.indexOf(',') + 1); handImgMime = f.type || 'image/jpeg';
+        if (prev) prev.innerHTML = '<img class="up-prev" src="' + r.result + '"/>';
+      }
+      document.getElementById('hand-go').disabled = false;
+      document.getElementById('hand-result').innerHTML = '';
+    };
+    img.onerror = function(){
+      handImgB64 = r.result.slice(r.result.indexOf(',') + 1); handImgMime = f.type || 'image/jpeg';
+      if (prev) prev.innerHTML = '<img class="up-prev" src="' + r.result + '"/>';
+      document.getElementById('hand-go').disabled = false;
+      document.getElementById('hand-result').innerHTML = '';
+    };
+    img.src = r.result;
   };
   r.readAsDataURL(f);
 }
