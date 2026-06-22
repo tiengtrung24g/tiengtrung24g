@@ -1523,12 +1523,20 @@ const PROXY_URL = '/.netlify/functions/gemini';
 let proxyOn = false;
 function aiReady(){ return !!getAiKey() || proxyOn; }
 async function geminiRaw(model, body){
-  const key = getAiKey();
+  const doFetch = function(){
+    const key = getAiKey();
+    if (key) return fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    return fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model: model, body: body }) });
+  };
   let res;
-  if (key){
-    res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-  } else {
-    res = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model: model, body: body }) });
+  for (let attempt = 0; attempt < 4; attempt++){
+    res = await doFetch();
+    if (res.ok) break;
+    if (res.status === 503 || res.status === 500 || res.status === 429){
+      await new Promise(function(r){ setTimeout(r, 800 * (attempt + 1)); });
+      continue;
+    }
+    break;
   }
   if (!res.ok){ let t=''; try{ t=await res.text(); }catch{} if (/API key not valid|API_KEY_INVALID/i.test(t)) throw new Error('BAD_KEY'); throw new Error('HTTP '+res.status); }
   const data = await res.json();
@@ -1566,7 +1574,8 @@ function aiErrMsg(e){
   const m = (e && e.message) || '';
   if (m === 'NO_KEY') return 'Chưa nhập API key (vào Cài đặt).';
   if (m === 'BAD_KEY') return 'API key không hợp lệ. Kiểm tra lại.';
-  if (/HTTP 429/.test(m)) return 'Vượt giới hạn dùng, thử lại sau ít phút.';
+  if (/HTTP 503|HTTP 500/.test(m)) return 'Máy chủ AI đang bận (quá tải tạm thời). Hãy thử lại sau vài giây nhé.';
+  if (/HTTP 429/.test(m)) return 'Hơi nhiều lượt cùng lúc, thử lại sau ít phút nhé.';
   if (/HTTP 403/.test(m)) return 'Key chưa được cấp quyền. Tạo lại key ở Google AI Studio.';
   if (/Failed to fetch|NetworkError|TypeError/i.test(m)) return 'Lỗi mạng/CORS. Cần Internet (nên mở app qua web, không phải file offline).';
   return 'Lỗi: ' + m;
