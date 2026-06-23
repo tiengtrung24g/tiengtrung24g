@@ -417,6 +417,10 @@ h1.title{font-size:24px;letter-spacing:-.3px;display:flex;align-items:center;gap
 .seg button{flex:1;min-width:88px;padding:12px 10px;border:none;background:var(--rice);border-radius:12px;font-family:inherit;font-weight:700;font-size:13.5px;cursor:pointer;color:rgba(26,20,19,.55);transition:.16s;white-space:nowrap}
 .seg button:hover{color:var(--cinnabar)}
 .seg button.on{background:linear-gradient(135deg,#FF566A,#D9001B);color:#fff;box-shadow:0 8px 18px -8px rgba(217,0,27,.55);transform:translateY(-1px)}
+.sub-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.subm{background:var(--rice);border-radius:12px;padding:9px 4px;text-align:center}
+.subm-n{font-family:'Bricolage Grotesque';font-weight:800;font-size:20px;line-height:1}
+.subm-l{font-size:10.5px;color:rgba(26,20,19,.6);margin-top:3px;line-height:1.2}
 </style>
 
 </head>
@@ -1780,14 +1784,13 @@ async function scoreFullAI(kewen, blob){
 function spToggleRec(i){
   if (recActiveId !== null && recActiveId !== i) { stopRec(); return; }
   if (recActiveId === i) { stopRec(); return; }
-  if (aiReady()) { startAudioRec(i); return; }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { setRecRes(i, '<div class="res-no">Trình duyệt này chưa hỗ trợ nhận giọng nói. Hãy dùng <b>Chrome</b>, hoặc bật AI ở ⚙️ để chấm bằng ghi âm.</div>'); return; }
   startSR(i);
 }
 function startSR(i){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recTranscript = ''; recInterim = ''; srErr = null; recActiveId = i;
+  recTranscript = ''; recInterim = ''; srErr = null; recActiveId = i; startPitch();
   const btn = document.getElementById('recbtn' + i);
   const res = document.getElementById('spres' + i);
   res.style.display = 'block';
@@ -1812,15 +1815,16 @@ function startSR(i){
 function srFinish(i){
   const btn = document.getElementById('recbtn' + i);
   if (btn) { btn.classList.remove('recording'); btn.classList.add('rec'); btn.innerHTML = '⏺ Ghi lại'; }
-  recActiveId = null;
+  recActiveId = null; stopPitch();
+  const dur = _now() - _recT0;
   const err = srErr; srErr = null; recognizer = null;
   const res = document.getElementById('spres' + i);
   const transcript = (recTranscript || recInterim || '').trim();
   if (!transcript) { res.innerHTML = '<div class="res-no">⚠️ ' + esc(srMsg(err)) + '</div>'; return; }
   const it = spItems[i];
-  const r = scorePronLocal(transcript, it);
+  const r = scorePronDevice(transcript, it, dur);
   renderSpResult(i, r, null);
-  logAi({ kind: 'pron', lesson: spLesson, target: it.zh, py: it.py, transcript: r.transcript || '', score: r.score, errChars: r.errChars || [], advice: r.advice || '', mode: r.mode });
+  logAi({ kind: 'pron', lesson: spLesson, target: it.zh, py: it.py, transcript: r.transcript || '', score: r.score, errChars: r.errChars || [], advice: r.advice || '', mode: 'device' });
   feedbackSound(r.score >= 70);
 }
 
@@ -1853,7 +1857,6 @@ function renderFullPanel(L){
 }
 function fullToggleRec(){
   if (recActiveId !== null) { stopRec(); return; }
-  if (aiReady()) { startAudioRec('full'); return; }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const res = document.getElementById('spresFULL');
   if (!SR) { res.innerHTML = '<div class="res-no">Trình duyệt này chưa hỗ trợ nhận giọng nói. Hãy dùng <b>Chrome</b>, hoặc bật AI ở ⚙️.</div>'; return; }
@@ -1861,7 +1864,7 @@ function fullToggleRec(){
 }
 function fullStart(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recTranscript = ''; recInterim = ''; srErr = null; recActiveId = 'full';
+  recTranscript = ''; recInterim = ''; srErr = null; recActiveId = 'full'; startPitch();
   const btn = document.getElementById('recbtnFULL');
   const res = document.getElementById('spresFULL');
   if (btn) { btn.classList.remove('rec'); btn.classList.add('recording'); btn.innerHTML = '⏹ Dừng & chấm'; }
@@ -1885,17 +1888,19 @@ function fullStart(){
 function fullFinish(){
   const btn = document.getElementById('recbtnFULL');
   if (btn) { btn.classList.remove('recording'); btn.classList.add('rec'); btn.innerHTML = '🎤 Ghi âm đọc cả bài'; }
-  recActiveId = null; const err = srErr; srErr = null; recognizer = null;
+  recActiveId = null; stopPitch();
+  const dur = _now() - _recT0;
+  const err = srErr; srErr = null; recognizer = null;
   const res = document.getElementById('spresFULL'); if (!res) return;
   const transcript = (recTranscript || recInterim || '').trim();
   if (!transcript) { res.innerHTML = '<div class="res-no">⚠️ ' + esc(srMsg(err)) + '</div>'; return; }
   const L = lessonById(spLesson);
-  const r = scoreFull(L.kewen, transcript);
+  const r = scoreFull(L.kewen, transcript, dur);
   res.innerHTML = renderFullResult(r);
   logAi({ kind: 'pron', lesson: spLesson, target: '【Cả bài】' + L.zh, py: '', transcript: transcript, score: r.overall, errChars: r.errChars, advice: r.advice, mode: 'browser' });
   feedbackSound(r.overall >= 70);
 }
-function scoreFull(kewen, transcript){
+function scoreFull(kewen, transcript, durationMs){
   const lines = stripKewenLines(kewen);
   const lineChars = lines.map(function(ln){ return normHan(ln).split(''); });
   const allChars = [].concat.apply([], lineChars);
@@ -1908,15 +1913,19 @@ function scoreFull(kewen, transcript){
     lineRes.push({ text: lines[li], len: len, score: len ? Math.round(ok / len * 100) : 100, wrong: wrong });
   }
   const total = allChars.length || 1;
-  const overall = Math.round(totalOk / total * 100);
+  const acc = Math.round(totalOk / total * 100);
+  const sec = Math.max(0.5, (durationMs||0)/1000);
+  const rate = total / sec;
+  const speed = speedScore(rate);
+  const speedLabel = rate < 1 ? 'hơi chậm' : (rate <= 3.2 ? 'vừa phải' : 'khá nhanh');
+  const fluency = Math.max(0, Math.min(100, Math.round(acc*0.5 + speed*0.2 + voicedScore(_pitchData)*0.3)));
+  const tone = 75;
+  const overall = Math.round(acc*0.45 + Math.min(speed,100)*0.15 + fluency*0.2 + tone*0.2);
   const errChars = lineRes.reduce(function(a, x){ return a.concat(x.wrong); }, []);
-  const weak = lineRes.filter(function(x){ return x.score < 80 && x.len >= 2; }).sort(function(a, b){ return a.score - b.score; });
-  let advice;
-  if (overall >= 85) advice = 'Tuyệt vời! Bạn đọc cả bài rất tốt. Hãy giữ phong độ này nhé!';
-  else if (overall >= 70) advice = 'Đạt yêu cầu rồi! Chú ý thêm vài chỗ tô đỏ để đọc hay hơn.';
-  else if (overall >= 55) advice = 'Gần đạt rồi. Nghe mẫu và luyện lại các câu tô đỏ, rồi đọc lại cả bài.';
-  else advice = 'Cố lên nhé! Nghe mẫu từng câu, đọc chậm rồi đọc lại cả bài.';
-  return { overall: overall, lines: lineRes, errChars: errChars, weak: weak, advice: advice };
+  const weak = lineRes.filter(function(x){ return x.score < 70 && x.len >= 2; }).sort(function(a, b){ return a.score - b.score; });
+  let advice = overall >= 85 ? 'Tuyệt vời! Đọc cả bài rõ và đều.' : overall >= 70 ? 'Đạt rồi! Chú ý các câu tô đỏ.' : 'Cố lên! Nghe mẫu rồi đọc lại chậm & rõ.';
+  return { overall: overall, lines: lineRes, errChars: errChars, weak: weak, advice: advice,
+    sub: { acc: acc, speed: speed, speedLabel: speedLabel, fluency: fluency, tone: tone } };
 }
 function renderFullResult(r){
   const pass = r.overall >= 70;
@@ -1932,7 +1941,7 @@ function renderFullResult(r){
   if (!wrongLines) wrongLines = '<div class="sp-fb" style="background:#ecfdf5;color:#047857"><b>✅ Tất cả các câu đều đọc tốt!</b></div>';
   const weakBox = r.weak.length ? '<div class="sp-fb"><b>📌 Cần chú ý nhất:</b> ' + r.weak.slice(0, 3).map(function(x){ return '<span class="hanzi">' + esc(x.text) + '</span>'; }).join(' · ') + '</div>' : '';
   return '<div class="panel"><div class="note-line" style="text-align:center;margin-bottom:8px">' + esc(user.name) + ' · Lớp ' + esc(user.cls) + ' · Bài ' + spLesson + '</div>' + trophy +
-    '<div class="sp-score" style="margin-top:12px"><div class="sp-score-num" style="color:' + col + '">' + r.overall + '</div><div class="sp-score-bar"><i style="width:' + r.overall + '%;background:' + col + '"></i></div></div>' +
+    '<div class="sp-score" style="margin-top:12px"><div class="sp-score-num" style="color:' + col + '">' + r.overall + '</div><div class="sp-score-bar"><i style="width:' + r.overall + '%;background:' + col + '"></i></div></div>' + subRow(r.sub) +
     '<div class="sp-fb">' + esc(r.advice) + '</div>' + weakBox + '</div>' +
     '<h2 class="sec-title">Chi tiết theo câu</h2>' + wrongLines;
 }
@@ -1961,6 +1970,128 @@ function spSummary(){
   const advice = pass ? 'Làm tốt lắm! Hãy thử "Đọc cả bài" để nhận cúp, hoặc chuyển phần khác.' : 'Nghe mẫu rồi luyện lại các mục tô đỏ; chú ý thanh điệu và âm bật hơi (p t k q c ch).';
   box.innerHTML = '<div class="panel"><div class="note-line" style="text-align:center;margin-bottom:6px">'+esc(user.name)+' · Lớp '+esc(user.cls)+' · '+partName+' Bài '+spLesson+'</div>'+trophy+'<div class="sp-fb">'+esc(advice)+'</div></div><h2 class="sec-title">Mục cần cải thiện</h2>'+wrongHtml;
   try { box.scrollIntoView({ behavior:'smooth', block:'nearest' }); } catch(e){}
+}
+// ===== CHẤM PHÁT ÂM TRÊN MÁY (miễn phí, không API) =====
+let _pitchStream = null, _pitchCtx = null, _pitchAnalyser = null, _pitchTimer = null, _pitchData = [], _recT0 = 0;
+function _now(){ return (window.performance && performance.now()) || Date.now(); }
+async function startPitch(){
+  _pitchData = []; _recT0 = _now();
+  try {
+    _pitchStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    _pitchCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = _pitchCtx.createMediaStreamSource(_pitchStream);
+    _pitchAnalyser = _pitchCtx.createAnalyser(); _pitchAnalyser.fftSize = 2048;
+    src.connect(_pitchAnalyser);
+    const buf = new Float32Array(_pitchAnalyser.fftSize);
+    _pitchTimer = setInterval(function(){
+      _pitchAnalyser.getFloatTimeDomainData(buf);
+      let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i]*buf[i]; rms = Math.sqrt(rms/buf.length);
+      const f0 = rms > 0.012 ? detectPitch(buf, _pitchCtx.sampleRate) : 0;
+      _pitchData.push({ t: _now() - _recT0, f0: f0, rms: rms });
+    }, 40);
+  } catch(e){ /* micro đang cho nhận giọng dùng -> bỏ qua pitch, vẫn chấm các phần khác */ }
+}
+function stopPitch(){
+  if (_pitchTimer){ clearInterval(_pitchTimer); _pitchTimer = null; }
+  if (_pitchStream){ try { _pitchStream.getTracks().forEach(function(t){ t.stop(); }); } catch(e){} _pitchStream = null; }
+  if (_pitchCtx){ try { _pitchCtx.close(); } catch(e){} _pitchCtx = null; }
+}
+function detectPitch(buf, sr){
+  const SIZE = buf.length;
+  let best = -1, bestLag = -1;
+  const minLag = Math.floor(sr/500), maxLag = Math.floor(sr/70);
+  for (let lag = minLag; lag <= maxLag; lag++){
+    let s = 0; for (let i = 0; i < SIZE - lag; i += 2){ s += buf[i]*buf[i+lag]; }
+    if (s > best){ best = s; bestLag = lag; }
+  }
+  if (bestLag <= 0) return 0;
+  const f0 = sr / bestLag;
+  return (f0 >= 70 && f0 <= 500) ? f0 : 0;
+}
+function toneOf(py){
+  const m = {'ā':1,'á':2,'ǎ':3,'à':4,'ē':1,'é':2,'ě':3,'è':4,'ī':1,'í':2,'ǐ':3,'ì':4,'ō':1,'ó':2,'ǒ':3,'ò':4,'ū':1,'ú':2,'ǔ':3,'ù':4,'ǖ':1,'ǘ':2,'ǚ':3,'ǜ':4};
+  for (const ch of (py || '')){ if (m[ch]) return m[ch]; }
+  return 0;
+}
+function classifyTone(f){
+  const n = f.length; if (n < 4) return 0;
+  const sorted = f.slice().sort(function(a,b){ return a-b; });
+  const med = sorted[Math.floor(n/2)] || 1;
+  const st = f.map(function(x){ return 12*Math.log2(x/med); });
+  const start = (st[0] + st[1]) / 2;
+  const end = (st[n-1] + st[n-2]) / 2;
+  let minv = st[0]; for (let i=0;i<n;i++) if (st[i] < minv) minv = st[i];
+  const slope = end - start;
+  if (slope > 1.5) return 2;
+  if (slope < -1.8) return 4;
+  if (minv < -2.0 && slope > -1.2) return 3;
+  return 1;
+}
+function speedScore(rate){
+  if (rate <= 0) return 0;
+  if (rate < 1.2) return Math.round(60 + rate/1.2*30);
+  if (rate <= 3.0) return Math.round(90 + (rate-1.2)/1.8*10);
+  if (rate <= 4.5) return Math.round(100 - (rate-3.0)/1.5*25);
+  return Math.max(45, Math.round(75 - (rate-4.5)*10));
+}
+function voicedScore(pd){
+  if (!pd || pd.length < 4) return 78;
+  const v = pd.filter(function(p){ return p.rms > 0.012; }).length;
+  return Math.max(50, Math.min(100, Math.round(55 + (v/pd.length)*45)));
+}
+function aspiratedTargets(zh){
+  const out = [];
+  normHan(zh).split('').forEach(function(c){
+    const py = (pyOf(c) || '').toLowerCase();
+    const a = ['ch','c','p','t','k','q'].find(function(x){ return py.indexOf(x) === 0; });
+    if (a) out.push(c + ' (' + a + ')');
+  });
+  return out;
+}
+function estimateTone(zh, pd){
+  const chars = normHan(zh).split('');
+  const expected = chars.map(function(c){ return toneOf(pyOf(c)); });
+  if (chars.length === 1 && pd && pd.length >= 6 && expected[0] > 0){
+    const f = pd.filter(function(p){ return p.f0 > 0 && p.rms > 0.012; }).map(function(p){ return p.f0; });
+    if (f.length >= 5){
+      const det = classifyTone(f);
+      const ok = det === expected[0];
+      return { score: ok ? 100 : 55, note: ok ? 'Thanh điệu đúng (thanh ' + expected[0] + ').' : 'Thanh điệu chưa chuẩn — cần thanh ' + expected[0] + ' (máy nghe ra thanh ' + det + '). Tham khảo.' };
+    }
+  }
+  const toneStr = chars.map(function(c,i){ return c + (expected[i] || ''); }).join(' ');
+  return { score: 75, note: 'Thanh điệu chuẩn cần đọc: ' + toneStr + ' (câu dài máy chỉ ước lượng).' };
+}
+function scorePronDevice(transcript, it, durationMs){
+  const tgt = normHan(it.zh).split('');
+  const syl = Math.max(1, tgt.length);
+  let marks, acc, errChars;
+  if (transcript){
+    const got = normHan(transcript).split('');
+    const matched = lcsMatch(tgt, got);
+    marks = tgt.map(function(c,k){ return { c:c, st: matched[k] ? 'ok' : 'bad' }; });
+    acc = Math.round(matched.filter(Boolean).length / syl * 100);
+    errChars = marks.filter(function(m){ return m.st !== 'ok'; }).map(function(m){ return m.c; });
+  } else {
+    marks = tgt.map(function(c){ return { c:c, st:'miss' }; }); acc = 0; errChars = tgt.slice();
+  }
+  const sec = Math.max(0.3, (durationMs||0)/1000);
+  const rate = syl / sec;
+  const speed = speedScore(rate);
+  const speedLabel = rate < 1 ? 'hơi chậm' : (rate <= 3.2 ? 'vừa phải' : 'khá nhanh');
+  const tRes = estimateTone(it.zh, _pitchData);
+  const tone = tRes.score;
+  const fluency = Math.max(0, Math.min(100, Math.round(acc*0.5 + speed*0.2 + voicedScore(_pitchData)*0.3)));
+  const overall = Math.round(acc*0.45 + Math.min(speed,100)*0.15 + fluency*0.2 + tone*0.2);
+  const advice = overall>=85 ? 'Rất tốt! Đọc rõ và đều.' : overall>=70 ? 'Đạt rồi! Chú ý các chữ tô đỏ.' : 'Cố lên! Nghe mẫu, đọc chậm & rõ từng chữ.';
+  return { score: overall, mode:'device', transcript: transcript, charMarks: marks, errChars: errChars,
+    sub: { acc:acc, speed:speed, speedLabel:speedLabel, fluency:fluency, tone:tone },
+    toneNote: tRes.note, asp: aspiratedTargets(it.zh), advice: advice };
+}
+function subRow(s){
+  if (!s) return '';
+  function pill(lbl, val, extra){ const c = val>=80?'#059669':(val>=60?'#f59e0b':'#D9001B'); return '<div class="subm"><div class="subm-n" style="color:'+c+'">'+val+'</div><div class="subm-l">'+lbl+(extra?' · '+esc(extra):'')+'</div></div>'; }
+  return '<div class="sub-row">' + pill('Đọc đúng', s.acc) + pill('Tốc độ', s.speed, s.speedLabel) + pill('Lưu loát', s.fluency) + pill('Thanh điệu', s.tone) + '</div>';
 }
 function lcsMatch(a, b){
   const n = a.length, m = b.length;
@@ -2016,21 +2147,21 @@ function renderSpResult(i, r, audioURL){
   spSession[spLesson + '|' + spMode + '|' + i] = { score: r.score, wrong: (r.errChars || []).slice(), zh: (spItems[i] || {}).zh || '' };
   const res = document.getElementById('spres' + i);
   const col = r.score >= 70 ? '#059669' : (r.score >= 50 ? '#f59e0b' : '#D9001B');
-  const chars = (r.charMarks || []).map(m => '<span class="sp-ch ' + m.st + '">' + esc(m.c) + '</span>').join('');
-  const tones = (r.toneErrors && r.toneErrors.length) ? '<div class="sp-fb"><b>Cần sửa phát âm:</b> ' + r.toneErrors.map(esc).join('; ') + '</div>' : '';
+  const chars = (r.charMarks || []).map(function(m){ return '<span class="sp-ch ' + m.st + '">' + esc(m.c) + '</span>'; }).join('');
   const fix = (r.errChars || []).filter(Boolean);
-  const fixBox = fix.length ? '<div class="sp-fb" style="background:#FFF1F2"><b style="color:#D9001B">❌ Từ cần sửa:</b> ' + fix.map(function(c){ return '<span class="sp-ch bad" style="font-size:18px">' + esc(c) + '</span><span class="pyhint">' + esc(pyOf(c)) + '</span>'; }).join(' ') + '</div>' : '<div class="sp-fb" style="background:#ecfdf5"><b style="color:#047857">✅ Đọc đúng hết, không có lỗi!</b></div>';
+  const fixBox = fix.length ? '<div class="sp-fb" style="background:#FFF1F2"><b style="color:#D9001B">❌ Từ cần sửa:</b> ' + fix.map(function(c){ return '<span class="sp-ch bad" style="font-size:18px">' + esc(c) + '</span><span class="pyhint">' + esc(pyOf(c)) + '</span>'; }).join(' ') + '</div>' : '<div class="sp-fb" style="background:#ecfdf5"><b style="color:#047857">✅ Đọc đúng hết!</b></div>';
+  const aspBox = (r.asp && r.asp.length) ? '<div class="note-line">💨 Chú ý bật hơi mạnh ở: <b class="hanzi">' + r.asp.map(esc).join('、') + '</b></div>' : '';
   res.innerHTML =
     '<div class="sp-score"><div class="sp-score-num" style="color:' + col + '">' + r.score + '</div>' +
       '<div class="sp-score-bar"><i style="width:' + r.score + '%;background:' + col + '"></i></div>' +
-      '<span class="ai-badge ' + (r.mode === 'ai' ? 'ai-on' : 'ai-off') + '">' + (r.mode === 'ai' ? 'AI' : 'Tự động') + '</span></div>' +
+      '<span class="ai-badge ai-off">Trên máy</span></div>' +
+    subRow(r.sub) +
     (chars ? '<div class="sp-chars">' + chars + '</div>' : '') +
     fixBox +
     (r.transcript ? '<div class="note-line">Nghe được: <b class="hanzi">' + esc(r.transcript) + '</b></div>' : '') +
-    tones +
-    (r.advice ? '<div class="sp-fb">' + esc(r.advice) + '</div>' : '') +
-    (r.note ? '<div class="note-line">ℹ️ ' + esc(r.note) + '</div>' : '') +
-    (audioURL ? '<audio controls src="' + audioURL + '" style="width:100%;margin-top:10px"></audio>' : '');
+    (r.toneNote ? '<div class="sp-fb">🎵 ' + esc(r.toneNote) + '</div>' : '') +
+    aspBox +
+    (r.advice ? '<div class="sp-fb">' + esc(r.advice) + '</div>' : '');
 }
 
 // ============ CHẤM CHỮ VIẾT TAY ============
