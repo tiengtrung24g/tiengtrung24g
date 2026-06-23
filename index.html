@@ -1790,7 +1790,7 @@ function spToggleRec(i){
 }
 function startSR(i){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recTranscript = ''; recInterim = ''; srErr = null; recActiveId = i; startPitch();
+  recTranscript = ''; recInterim = ''; srErr = null; recActiveId = i; _recT0 = _now();
   const btn = document.getElementById('recbtn' + i);
   const res = document.getElementById('spres' + i);
   res.style.display = 'block';
@@ -1864,7 +1864,7 @@ function fullToggleRec(){
 }
 function fullStart(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recTranscript = ''; recInterim = ''; srErr = null; recActiveId = 'full'; startPitch();
+  recTranscript = ''; recInterim = ''; srErr = null; recActiveId = 'full'; _recT0 = _now();
   const btn = document.getElementById('recbtnFULL');
   const res = document.getElementById('spresFULL');
   if (btn) { btn.classList.remove('rec'); btn.classList.add('recording'); btn.innerHTML = '⏹ Dừng & chấm'; }
@@ -1919,7 +1919,7 @@ function scoreFull(kewen, transcript, durationMs){
   const speed = speedScore(rate);
   const speedLabel = rate < 1 ? 'hơi chậm' : (rate <= 3.2 ? 'vừa phải' : 'khá nhanh');
   const fluency = Math.max(0, Math.min(100, Math.round(acc*0.5 + speed*0.2 + voicedScore(_pitchData)*0.3)));
-  const tone = 75;
+  const tone = Math.round(60 + acc*0.4);
   const overall = Math.round(acc*0.45 + Math.min(speed,100)*0.15 + fluency*0.2 + tone*0.2);
   const errChars = lineRes.reduce(function(a, x){ return a.concat(x.wrong); }, []);
   const weak = lineRes.filter(function(x){ return x.score < 70 && x.len >= 2; }).sort(function(a, b){ return a.score - b.score; });
@@ -2080,7 +2080,7 @@ function scorePronDevice(transcript, it, durationMs){
   const speed = speedScore(rate);
   const speedLabel = rate < 1 ? 'hơi chậm' : (rate <= 3.2 ? 'vừa phải' : 'khá nhanh');
   const tRes = estimateTone(it.zh, _pitchData);
-  const tone = tRes.score;
+  const tone = Math.round(60 + acc*0.4);
   const fluency = Math.max(0, Math.min(100, Math.round(acc*0.5 + speed*0.2 + voicedScore(_pitchData)*0.3)));
   const overall = Math.round(acc*0.45 + Math.min(speed,100)*0.15 + fluency*0.2 + tone*0.2);
   const advice = overall>=85 ? 'Rất tốt! Đọc rõ và đều.' : overall>=70 ? 'Đạt rồi! Chú ý các chữ tô đỏ.' : 'Cố lên! Nghe mẫu, đọc chậm & rõ từng chữ.';
