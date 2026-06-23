@@ -2180,17 +2180,22 @@ function renderHand(){
     '<div class="panel"><label class="field-label">Chọn bài (để biết cần viết chữ nào)</label>' +
       '<div class="pill-row">' + lessons + '</div>' +
       '<div class="note-line">Chữ của Bài ' + L.n + ': <b class="hanzi" style="font-size:17px">' + esc(L.vocab.map(v => v.h).join('  ')) + '</b></div></div>' +
-    '<label class="up-zone" for="hand-file">' +
-      '<input id="hand-file" type="file" accept="image/*" style="display:none" onchange="handFile(this)"/>' +
-      '<div class="up-ic">📷🖼️</div><b>Chụp ảnh mới hoặc chọn từ album</b><p>Bấm để chụp vở, hoặc chọn ảnh có sẵn trong thư viện. Viết rõ, chụp thẳng, đủ sáng.</p></label>' +
+    '<div class="up-zone" onclick="pickHandImg()">' +
+      '<div class="up-ic">📷🖼️</div><b>Chụp ảnh mới hoặc chọn từ album</b><p>Bấm để chụp vở, hoặc chọn ảnh có sẵn trong thư viện. Viết rõ, chụp thẳng, đủ sáng.</p></div>' +
+      '<input id="hand-file" type="file" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0;left:-100px;top:-100px" onchange="handFile(this)"/>' +
     '<div id="hand-prevwrap"></div>' +
     '<div class="pill-row" style="margin-top:12px"><button class="btn-primary" id="hand-go" onclick="handGrade()" disabled>Chấm bài</button></div>' +
     '<div id="hand-result"></div>';
+}
+function pickHandImg(){
+  const el = document.getElementById('hand-file');
+  if (el){ try { el.value = ''; } catch(e){} el.click(); }
 }
 function handFile(inp){
   const f = inp.files && inp.files[0]; if (!f) return;
   const prev = document.getElementById('hand-prevwrap');
   if (prev) prev.innerHTML = '<div class="note-line"><span class="spin"></span> Đang xử lý ảnh...</div>';
+  const enable = function(){ const go = document.getElementById('hand-go'); if (go) go.disabled = false; const hr = document.getElementById('hand-result'); if (hr) hr.innerHTML = ''; };
   const r = new FileReader();
   r.onerror = function(){ if (prev) prev.innerHTML = '<div class="res-no">Không đọc được ảnh. Hãy thử ảnh khác (JPG/PNG).</div>'; };
   r.onload = function(){
@@ -2199,9 +2204,8 @@ function handFile(inp){
     const useRaw = function(){
       if (done) return; done = true;
       handImgB64 = raw.slice(raw.indexOf(',') + 1); handImgMime = f.type || 'image/jpeg';
-      if (prev) prev.innerHTML = '<img class="up-prev" src="' + raw + '"/><div class="note-line">Đã chọn ảnh — bấm <b>Chấm bài</b>. (Nếu không xem trước được thì vẫn chấm bình thường.)</div>';
-      const go = document.getElementById('hand-go'); if (go) go.disabled = false;
-      const hr = document.getElementById('hand-result'); if (hr) hr.innerHTML = '';
+      if (prev) prev.innerHTML = '<img class="up-prev" src="' + raw + '"/><div class="note-line">Đã chọn ảnh — bấm Chấm bài. (Nếu không xem trước được vẫn chấm bình thường.)</div>';
+      enable();
     };
     const t = setTimeout(useRaw, 5000);
     const img = new Image();
@@ -2211,15 +2215,14 @@ function handFile(inp){
         const maxD = 1280;
         let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
         if (!w || !h){ done = false; useRaw(); return; }
-        if (Math.max(w, h) > maxD){ const k = maxD / Math.max(w, h); w = Math.round(w * k); h = Math.round(h * k); }
+        if (Math.max(w, h) > maxD){ const k = maxD / Math.max(w, h); w = Math.round(w*k); h = Math.round(h*k); }
         const c = document.createElement('canvas'); c.width = w; c.height = h;
         c.getContext('2d').drawImage(img, 0, 0, w, h);
         const durl = c.toDataURL('image/jpeg', 0.82);
         if (durl && durl.length > 200){
           handImgB64 = durl.slice(durl.indexOf(',') + 1); handImgMime = 'image/jpeg';
           if (prev) prev.innerHTML = '<img class="up-prev" src="' + durl + '"/>';
-          const go = document.getElementById('hand-go'); if (go) go.disabled = false;
-          const hr = document.getElementById('hand-result'); if (hr) hr.innerHTML = '';
+          enable();
         } else { done = false; useRaw(); }
       } catch(e){ done = false; useRaw(); }
     };
