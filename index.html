@@ -2192,32 +2192,39 @@ function handFile(inp){
   const prev = document.getElementById('hand-prevwrap');
   if (prev) prev.innerHTML = '<div class="note-line"><span class="spin"></span> Đang xử lý ảnh...</div>';
   const r = new FileReader();
+  r.onerror = function(){ if (prev) prev.innerHTML = '<div class="res-no">Không đọc được ảnh. Hãy thử ảnh khác (JPG/PNG).</div>'; };
   r.onload = function(){
+    const raw = r.result;
+    let done = false;
+    const useRaw = function(){
+      if (done) return; done = true;
+      handImgB64 = raw.slice(raw.indexOf(',') + 1); handImgMime = f.type || 'image/jpeg';
+      if (prev) prev.innerHTML = '<img class="up-prev" src="' + raw + '"/><div class="note-line">Đã chọn ảnh — bấm <b>Chấm bài</b>. (Nếu không xem trước được thì vẫn chấm bình thường.)</div>';
+      const go = document.getElementById('hand-go'); if (go) go.disabled = false;
+      const hr = document.getElementById('hand-result'); if (hr) hr.innerHTML = '';
+    };
+    const t = setTimeout(useRaw, 5000);
     const img = new Image();
     img.onload = function(){
+      if (done) return; done = true; clearTimeout(t);
       try {
         const maxD = 1280;
-        let w = img.width, h = img.height;
+        let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+        if (!w || !h){ done = false; useRaw(); return; }
         if (Math.max(w, h) > maxD){ const k = maxD / Math.max(w, h); w = Math.round(w * k); h = Math.round(h * k); }
         const c = document.createElement('canvas'); c.width = w; c.height = h;
         c.getContext('2d').drawImage(img, 0, 0, w, h);
         const durl = c.toDataURL('image/jpeg', 0.82);
-        handImgB64 = durl.slice(durl.indexOf(',') + 1); handImgMime = 'image/jpeg';
-        if (prev) prev.innerHTML = '<img class="up-prev" src="' + durl + '"/>';
-      } catch(e){
-        handImgB64 = r.result.slice(r.result.indexOf(',') + 1); handImgMime = f.type || 'image/jpeg';
-        if (prev) prev.innerHTML = '<img class="up-prev" src="' + r.result + '"/>';
-      }
-      document.getElementById('hand-go').disabled = false;
-      document.getElementById('hand-result').innerHTML = '';
+        if (durl && durl.length > 200){
+          handImgB64 = durl.slice(durl.indexOf(',') + 1); handImgMime = 'image/jpeg';
+          if (prev) prev.innerHTML = '<img class="up-prev" src="' + durl + '"/>';
+          const go = document.getElementById('hand-go'); if (go) go.disabled = false;
+          const hr = document.getElementById('hand-result'); if (hr) hr.innerHTML = '';
+        } else { done = false; useRaw(); }
+      } catch(e){ done = false; useRaw(); }
     };
-    img.onerror = function(){
-      handImgB64 = r.result.slice(r.result.indexOf(',') + 1); handImgMime = f.type || 'image/jpeg';
-      if (prev) prev.innerHTML = '<img class="up-prev" src="' + r.result + '"/>';
-      document.getElementById('hand-go').disabled = false;
-      document.getElementById('hand-result').innerHTML = '';
-    };
-    img.src = r.result;
+    img.onerror = function(){ clearTimeout(t); done = false; useRaw(); };
+    img.src = raw;
   };
   r.readAsDataURL(f);
 }
