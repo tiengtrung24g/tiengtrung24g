@@ -424,6 +424,8 @@ h1.title{font-size:24px;letter-spacing:-.3px;display:flex;align-items:center;gap
 .up-btn{flex:1;min-width:130px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:20px 12px;border:2px dashed rgba(217,0,27,.35);border-radius:16px;background:#fff;font-family:inherit;font-weight:700;font-size:14px;color:var(--ink);cursor:pointer;text-align:center}
 .up-btn:hover{border-color:var(--cinnabar);background:#FFFAF8}
 .up-btn:active{background:#FFF1F2;transform:scale(.98)}
+.up-wrap{position:relative}
+.up-overlay{position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px;z-index:2}
 </style>
 
 </head>
@@ -2183,13 +2185,11 @@ function renderHand(){
     '<div class="panel"><label class="field-label">Chọn bài (để biết cần viết chữ nào)</label>' +
       '<div class="pill-row">' + lessons + '</div>' +
       '<div class="note-line">Chữ của Bài ' + L.n + ': <b class="hanzi" style="font-size:17px">' + esc(L.vocab.map(v => v.h).join('  ')) + '</b></div></div>' +
-    '<div class="pill-row" style="gap:10px">' +
-      '<label class="up-btn" for="hand-cam"><span style="font-size:30px">📷</span>Chụp ảnh vở</label>' +
-      '<label class="up-btn" for="hand-lib"><span style="font-size:30px">🖼️</span>Chọn từ thư viện</label>' +
+    '<div class="up-wrap">' +
+      '<div class="up-zone"><div class="up-ic">📷🖼️</div><b>Chụp / Chọn ảnh vở</b><p>Bấm vào đây để chụp ảnh vở hoặc chọn ảnh từ thư viện. Viết rõ, chụp thẳng, đủ sáng.</p></div>' +
+      '<input id="hand-lib" type="file" accept="image/*" onchange="handFile(this)" class="up-overlay" aria-label="Chọn ảnh vở"/>' +
     '</div>' +
-    '<input id="hand-cam" type="file" accept="image/*" capture="environment" style="display:none" onchange="handFile(this)"/>' +
-    '<input id="hand-lib" type="file" accept="image/*" style="display:none" onchange="handFile(this)"/>' +
-    '<p class="note-line" style="text-align:center">Viết rõ trên giấy kẻ ô, chụp thẳng, đủ sáng. Nếu nút không mở được, hãy mở app bằng <b>Safari/Chrome</b> thay vì trong Zalo.</p>' +
+    '<p class="note-line" style="text-align:center;margin-top:8px">📱 Trên iPhone: bấm vào ô trên sẽ hiện <b>Thư viện ảnh / Chụp ảnh / Chọn tệp</b>. Nếu không mở được, hãy mở app bằng <b>Safari</b> (đừng mở trong Zalo/Messenger).</p>' +
     '<div id="hand-prevwrap"></div>' +
     '<div class="pill-row" style="margin-top:12px"><button class="btn-primary" id="hand-go" onclick="handGrade()" disabled>Chấm bài</button></div>' +
     '<div id="hand-result"></div>';
