@@ -1758,10 +1758,12 @@ async function onAudioStop(id){
 async function scoreFullAI(kewen, blob){
   const lines = stripKewenLines(kewen);
   const b64 = await blobToB64(blob); const mime = (blob.type || 'audio/webm').split(';')[0];
-  const prompt = 'Bạn là giáo viên tiếng Trung CHẤM KHÍCH LỆ, RỘNG RÃI cho học sinh người Việt mới học — KHÔNG khắt khe. ' +
-    'Học sinh đọc to cả bài khóa gồm các câu sau:\n' + lines.map(function(l,i){ return (i+1)+'. '+l; }).join('\n') + '\n' +
-    'Nguyên tắc cho điểm mỗi câu: đọc đúng từ và tạm rõ thanh điệu → 85-95; lơ lớ/ngọng nhẹ nhưng vẫn nghe ra ý → 75-85; chỉ cho dưới 70 khi đọc SAI TỪ rõ rệt hoặc sai nhiều thanh điệu. Chấm như giáo viên động viên người mới học, đừng trừ điểm vì khẩu âm vùng miền. ' +
-    'CHỈ trả về JSON: {"overall":0-100,"transcript":"chữ Hán nghe được","advice":"2-3 câu khuyên NHẸ NHÀNG, khích lệ","lines":[{"i":số câu,"score":0-100,"wrong":["chỉ những chữ SAI RÕ"],"issue":"lỗi rõ rệt nếu có"}]}.';
+  const refLines = lines.map(function(l,i){ return (i+1)+'. '+l+'  (pinyin: '+normHan(l).split('').map(function(c){ return pyOf(c) || '?'; }).join(' ')+')'; }).join('\n');
+  const prompt = 'Bạn là giáo viên tiếng Trung chấm phát âm cho học sinh người Việt, chấm KHÍCH LỆ (không khắt khe), bỏ qua khẩu âm vùng miền. ' +
+    'Học sinh đọc to cả bài khóa. Các câu kèm PINYIN CHUẨN:\n' + refLines + '\n' +
+    'Nghe ghi âm, so với pinyin chuẩn. Điểm mỗi câu rộng rãi: đúng từ + tạm rõ thanh → 85-95; lơ lớ nhẹ vẫn nghe ra → 75-85; chỉ dưới 70 khi sai rõ. ' +
+    'Lỗi phải ghi RÕ LOẠI: thanh mẫu (phụ âm đầu) / bật hơi / thanh điệu. ' +
+    'CHỈ trả về JSON: {"overall":0-100,"transcript":"chữ nghe được","advice":"2-3 câu khích lệ","lines":[{"i":số câu,"score":0-100,"wrong":["chữ sai rõ"],"issue":"vd: 茶 chá thiếu bật hơi"}]}.';
   const out = await geminiCall([{ text: prompt }, { inline_data: { mime_type: mime, data: b64 } }], { json: true });
   const j = parseAiJson(out) || {};
   const lineRes = lines.map(function(t, idx){
@@ -1995,13 +1997,13 @@ function scorePronLocal(transcript, it){
 async function scorePronAI(blob, it){
   const b64 = await blobToB64(blob);
   const mime = (blob.type || 'audio/webm').split(';')[0];
+  const ref = normHan(it.zh).split('').map(function(c){ return c + '=' + (pyOf(c) || '?'); }).join(' ');
   const prompt =
-    'Bạn là giáo viên tiếng Trung CHẤM KHÍCH LỆ, RỘNG RÃI cho học sinh người Việt mới học — KHÔNG khắt khe. ' +
-    'Học sinh đọc câu:\nChữ Hán: ' + it.zh + '\n' + (it.py ? ('Pinyin: ' + it.py + '\n') : '') +
-    'Nguyên tắc cho điểm: đọc đúng từ và tạm rõ thanh điệu → 85-95; lơ lớ/ngọng nhẹ nhưng vẫn nghe ra → 75-85; chỉ dưới 70 khi đọc SAI TỪ rõ rệt hoặc sai nhiều thanh điệu. Đừng trừ điểm vì khẩu âm vùng miền. CHỈ trả về JSON:\n' +
-    '{"transcript":"chữ Hán nghe được","score":0-100,"errChars":["chỉ những chữ SAI RÕ"],' +
-    '"toneErrors":["chỉ lỗi RÕ RỆT nếu có, vd: 难 đọc sai thanh"],"advice":"1-2 câu khuyên NHẸ NHÀNG, khích lệ"}. ' +
-    'Nếu thật sự không nghe rõ giọng thì để score thấp và ghi rõ ở advice.';
+    'Bạn là giáo viên tiếng Trung chấm phát âm cho học sinh người Việt, chấm KHÍCH LỆ (không khắt khe), bỏ qua khẩu âm vùng miền. ' +
+    'Câu cần đọc, kèm PINYIN CHUẨN từng chữ: ' + ref + '. ' +
+    'Nghe ghi âm và so với pinyin chuẩn để chấm. Điểm rộng rãi: đúng từ + tạm rõ thanh → 85-95; lơ lớ nhẹ vẫn nghe ra → 75-85; chỉ dưới 70 khi sai từ rõ hoặc sai nhiều. ' +
+    'Khi có lỗi phải nói RÕ LOẠI: THANH MẪU (phụ âm đầu sai), BẬT HƠI (p/t/k/q/c/ch chưa bật), hoặc THANH ĐIỆU (đọc sai thanh mấy thành thanh mấy). ' +
+    'CHỈ trả về JSON NGẮN GỌN: {"transcript":"chữ nghe được","score":0-100,"errChars":["chữ sai rõ"],"toneErrors":["vd: 七 qī thiếu bật hơi; 马 mǎ đọc thành thanh 1"],"advice":"1 câu khích lệ"}.';
   const out = await geminiCall([{ text: prompt }, { inline_data: { mime_type: mime, data: b64 } }], { json: true });
   const j = parseAiJson(out) || {};
   const tgt = normHan(it.zh).split('');
