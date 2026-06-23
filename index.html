@@ -2181,8 +2181,8 @@ function renderHand(){
       '<div class="pill-row">' + lessons + '</div>' +
       '<div class="note-line">Chữ của Bài ' + L.n + ': <b class="hanzi" style="font-size:17px">' + esc(L.vocab.map(v => v.h).join('  ')) + '</b></div></div>' +
     '<label class="up-zone" for="hand-file">' +
-      '<input id="hand-file" type="file" accept="image/*" capture="environment" style="display:none" onchange="handFile(this)"/>' +
-      '<div class="up-ic">📷</div><b>Chụp / chọn ảnh vở</b><p>Viết trên giấy kẻ ô, chụp thẳng, đủ sáng.</p></label>' +
+      '<input id="hand-file" type="file" accept="image/*" style="display:none" onchange="handFile(this)"/>' +
+      '<div class="up-ic">📷🖼️</div><b>Chụp ảnh mới hoặc chọn từ album</b><p>Bấm để chụp vở, hoặc chọn ảnh có sẵn trong thư viện. Viết rõ, chụp thẳng, đủ sáng.</p></label>' +
     '<div id="hand-prevwrap"></div>' +
     '<div class="pill-row" style="margin-top:12px"><button class="btn-primary" id="hand-go" onclick="handGrade()" disabled>Chấm bài</button></div>' +
     '<div id="hand-result"></div>';
