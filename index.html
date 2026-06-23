@@ -465,7 +465,7 @@ h1.title{font-size:24px;letter-spacing:-.3px;display:flex;align-items:center;gap
     <section class="screen" id="teacher"></section>
     <section class="screen" id="settings"></section>
   </main>
-  <div class="footer">Ứng dụng học tập · Trung Tâm Tiếng Trung 24G · Thủy Nguyên, Hải Phòng</div>
+  <div class="footer">Ứng dụng học tập · Trung Tâm Tiếng Trung 24G · Thủy Nguyên, Hải Phòng · <b>v4</b></div>
 </div>
 
 <script>
@@ -2185,11 +2185,12 @@ function renderHand(){
     '<div class="panel"><label class="field-label">Chọn bài (để biết cần viết chữ nào)</label>' +
       '<div class="pill-row">' + lessons + '</div>' +
       '<div class="note-line">Chữ của Bài ' + L.n + ': <b class="hanzi" style="font-size:17px">' + esc(L.vocab.map(v => v.h).join('  ')) + '</b></div></div>' +
-    '<div class="up-wrap">' +
-      '<div class="up-zone"><div class="up-ic">📷🖼️</div><b>Chụp / Chọn ảnh vở</b><p>Bấm vào đây để chụp ảnh vở hoặc chọn ảnh từ thư viện. Viết rõ, chụp thẳng, đủ sáng.</p></div>' +
-      '<input id="hand-lib" type="file" accept="image/*" onchange="handFile(this)" class="up-overlay" aria-label="Chọn ảnh vở"/>' +
+    '<div class="up-zone" style="display:block">' +
+      '<div class="up-ic">📷🖼️</div><b>Tải ảnh vở lên để chấm</b>' +
+      '<p style="margin:4px 0 14px">Viết rõ trên giấy kẻ ô, chụp thẳng, đủ sáng.</p>' +
+      '<input type="file" accept="image/*" id="hand-lib" onchange="handFile(this)" style="display:block;margin:0 auto;font-size:16px;max-width:100%"/>' +
     '</div>' +
-    '<p class="note-line" style="text-align:center;margin-top:8px">📱 Trên iPhone: bấm vào ô trên sẽ hiện <b>Thư viện ảnh / Chụp ảnh / Chọn tệp</b>. Nếu không mở được, hãy mở app bằng <b>Safari</b> (đừng mở trong Zalo/Messenger).</p>' +
+    '<p class="note-line" style="text-align:center;margin-top:8px">Bấm nút <b>"Chọn tệp / Choose File"</b> ở trên → chọn <b>Thư viện ảnh</b> (lấy ảnh có sẵn) hoặc <b>Chụp ảnh</b>.</p>' +
     '<div id="hand-prevwrap"></div>' +
     '<div class="pill-row" style="margin-top:12px"><button class="btn-primary" id="hand-go" onclick="handGrade()" disabled>Chấm bài</button></div>' +
     '<div id="hand-result"></div>';
